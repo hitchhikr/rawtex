@@ -9,4 +9,4 @@ it also have a color key feature to handle transparency and can convert grayscal
 
 Note:
 
-Work is been made to include support for Amiga & Atari ST planar exports (only chunky is available yet).
+Work is been made to include support for Amiga & Atari ST planar exports (only chunky is available for indexed modes).
