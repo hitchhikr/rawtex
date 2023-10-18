@@ -39,7 +39,7 @@
 
 // ----------------------------------------------------
 // Constants
-#define PLUGIN_VERSION "2.0"
+#define PLUGIN_VERSION "2.1"
 #define PROCEDURE_NAME "RAWTEX"
 
 #define GU_PSM_5650 0
@@ -56,6 +56,7 @@
 #define GU_PSM_0333 11
 #define GU_PSM_0444 12
 #define GU_PSM_0888 13
+#define GU_PSM_5550 14
 
 #define CB_IDX_5650 0
 #define CB_IDX_5551 1
@@ -74,6 +75,7 @@
 #define CB_PAL_0333 4
 #define CB_PAL_0444 5
 #define CB_PAL_0888 6
+#define CB_PAL_5550 7
 
 #define DXT_TYPE_PSP 0
 #define DXT_TYPE_OGL 1

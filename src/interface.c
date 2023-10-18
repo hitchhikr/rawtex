@@ -136,6 +136,7 @@ GtkWidget *create_winMain(GtkWidget *winMain, LPPluginValues Init_Values)
     gtk_combo_box_append_text(GTK_COMBO_BOX (CbPal), "A:0 R:3 G:3 B:3");
     gtk_combo_box_append_text(GTK_COMBO_BOX (CbPal), "A:0 R:4 G:4 B:4");
     gtk_combo_box_append_text(GTK_COMBO_BOX (CbPal), "A:0 R:8 G:8 B:8");
+    gtk_combo_box_append_text(GTK_COMBO_BOX (CbPal), "G:5 R:5 B:5 A:0 (X68000)");
     
     LblPal = gtk_label_new("Palette format");
     gtk_widget_set_name(LblPal, "LblPal");

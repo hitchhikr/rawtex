@@ -269,6 +269,8 @@ gint PaletteFromCombo(gint value)
             return GU_PSM_0444;
         case CB_PAL_0888:
             return GU_PSM_0888;
+        case CB_PAL_5550:
+            return GU_PSM_5550;
         default:
             return GU_PSM_8888;
     }
@@ -368,6 +370,22 @@ gushort Convert_0333(guchar *pixels)
     {
         return((red << 8) | (green << 4) | blue);
     }
+}
+
+// ----------------------------------------------------
+// Convert a RGBA pixel into 5550 format
+gushort Convert_5550(guchar *pixels)
+{
+    guchar red;
+    guchar green;
+    guchar blue;
+
+    pixels += 1;
+    red = (guchar) ((*pixels++ / 255.0) * 31.0);
+    green = (guchar) ((*pixels++ / 255.0) * 31.0);
+    blue = (guchar) ((*pixels++ / 255.0) * 31.0);
+
+    return((green << 11) | (red << 6) | (blue << 1) | 0);
 }
 
 // ----------------------------------------------------
@@ -819,6 +837,10 @@ int Convert_Palette(guchar *palette_buffer,
                 *wdest_palette_buffer++ = Convert_0444(palette_buffer);
                 bytes += 2;
                 break;
+            case GU_PSM_5550:
+                *wdest_palette_buffer++ = Convert_5550(palette_buffer);
+                bytes += 2;
+                break;
             case GU_PSM_0888:
                 *ddest_palette_buffer++ = Convert_0888(palette_buffer);
                 bytes += 4;
@@ -902,10 +924,12 @@ void write_data(gchar *name,
                 gint bytes,
                 FILE *out,
                 gint size,
-                gint source_code)
+                gint source_code,
+                gint msb_first)
 {
     gint write_ret;
     gint i;
+    guchar value;
     char data_format[16];
     gushort *wdest_buffer;
     guint *dwdest_buffer;
@@ -951,6 +975,15 @@ void write_data(gchar *name,
     }
     else
     {
+        if(msb_first)
+        {
+            for(i = 0; i < bytes; i += 2)
+            {
+                value = dest_buffer[i + 1];
+                dest_buffer[i + 1] = dest_buffer[i];
+                dest_buffer[i] = value;
+            }
+        }
         write_ret = fwrite(dest_buffer, bytes, 1, out);
     }
 }
@@ -1257,7 +1290,7 @@ gint save_image(gchar *filename,
                         case GU_PSM_DXT3:
                         case GU_PSM_DXT5:
                             g_message("Something seriously wrong & bad has occured\n");
-                            break;
+                            goto error;
                         default:
                             Swizzle_Wide = 1;
                             break;
@@ -1312,7 +1345,7 @@ gint save_image(gchar *filename,
                         break;
                 }
                 mipmaps_offsets[i] = current_offset;
-                write_data(header_name, (guchar *) dest_buffer, bytes, out, 1, values_defaults.Save_Picture_Source);
+                write_data(header_name, (guchar *) dest_buffer, bytes, out, 1, values_defaults.Save_Picture_Source, 0);
                 current_offset += bytes;
             }
 
@@ -1374,7 +1407,6 @@ gint save_image(gchar *filename,
                 }
             }
         }
-
         fclose(out);
 
         if(Save_Extra_Files)
@@ -1395,9 +1427,11 @@ gint save_image(gchar *filename,
                 if(values_defaults.Save_Palette_Source) strcat(palette_filename, ".h");
 
                 out_palette = fopen(palette_filename, "wb");
-                if(!out)
+                if(!out_palette)
                 {
                     g_message("Unable to create file: %s\n", palette_filename);
+                    Return_Value = FALSE;
+                    goto error;
                 }
                 else
                 {
@@ -1420,7 +1454,8 @@ gint save_image(gchar *filename,
                                (guchar *) dest_palette_buffer,
                                bytes,
                                out_palette, pal_element_size,
-                               values_defaults.Save_Palette_Source);
+                               values_defaults.Save_Palette_Source,
+                               PaletteFromCombo(values_defaults.Dest_Palette_Format) == GU_PSM_5550);
                     fclose(out_palette);
                     Return_Value = TRUE;
                 }
@@ -1435,16 +1470,18 @@ gint save_image(gchar *filename,
             if(j) strncpy(palette_filename, filename, (&filename[j]) - filename);
             strcat(palette_filename, ".h");
             out_palette = fopen(palette_filename, "w");
-            if(!out)
+            if(!out_palette)
             {
                 g_message("Unable to create %s.h file\n", filename);
+                Return_Value = FALSE;
+                goto error;
             }
             else
             {
                 Create_Label(header_name, palette_filename);
 
-                fprintf(out, "/* File produced with RAWTEX Gimp plugin v%s\n", PLUGIN_VERSION);
-                fprintf(out, "   Written by Franck Charlet. */\n\n");
+                fprintf(out_palette, "/* File produced with RAWTEX Gimp plugin v%s\n", PLUGIN_VERSION);
+                fprintf(out_palette, "   Written by Franck Charlet. */\n\n");
                 pow_width = drawable->width;
                 pow_height = drawable->height;
                 for(i = 0; i < (sizeof(pow_table) / sizeof(gint)) - 1; i++)
@@ -1463,18 +1500,17 @@ gint save_image(gchar *filename,
                         break;
                     }
                 }
-                fprintf(out, "#define %s_TEXTURE_WIDTH %d\n", header_name, pow_width);
-                fprintf(out, "#define %s_TEXTURE_REAL_WIDTH %d\n", header_name, drawable->width);
-                fprintf(out, "#define %s_TEXTURE_HEIGHT %d\n", header_name, pow_height);
-                fprintf(out, "#define %s_TEXTURE_REAL_HEIGHT %d\n", header_name, drawable->height);
-                fprintf(out, "#define %s_TEXTURE_FORMAT %d\n", header_name, values_defaults.Dest_Format);
-                fprintf(out, "#define %s_TEXTURE_MIPMAPS %d\n", header_name, values_defaults.Nbr_MipMaps);
-                fprintf(out, "#define %s_TEXTURE_SWIZZLE %d\n", header_name, values_defaults.Swizzle_Texture & values_defaults.Use_Swizzle_Texture);
+                fprintf(out_palette, "#define %s_TEXTURE_WIDTH %d\n", header_name, pow_width);
+                fprintf(out_palette, "#define %s_TEXTURE_REAL_WIDTH %d\n", header_name, drawable->width);
+                fprintf(out_palette, "#define %s_TEXTURE_HEIGHT %d\n", header_name, pow_height);
+                fprintf(out_palette, "#define %s_TEXTURE_REAL_HEIGHT %d\n", header_name, drawable->height);
+                fprintf(out_palette, "#define %s_TEXTURE_FORMAT %d\n", header_name, values_defaults.Dest_Format);
+                fprintf(out_palette, "#define %s_TEXTURE_MIPMAPS %d\n", header_name, values_defaults.Nbr_MipMaps);
+                fprintf(out_palette, "#define %s_TEXTURE_SWIZZLE %d\n", header_name, values_defaults.Swizzle_Texture & values_defaults.Use_Swizzle_Texture);
                 if(Indexed_Mode)
                 {
-                    fprintf(out, "\n#define %s_PALETTE_FORMAT %d\n", header_name, PaletteFromCombo(values_defaults.Dest_Palette_Format));
-                    fprintf(out, "#define %s_PALETTE_COLORS (%d / %d)\n", header_name, Nbr_Colors, PaletteFromCombo(values_defaults.Dest_Palette_Format) == GU_PSM_8888 ? 8: 16);
-                    fprintf(out, "#define %s_PALETTE_MASK 0x%s\n", header_name, Nbr_Colors > 16 ? "ff": "f");
+                    fprintf(out_palette, "\n#define %s_PALETTE_FORMAT %d\n", header_name, PaletteFromCombo(values_defaults.Dest_Palette_Format));
+                    fprintf(out_palette, "#define %s_PALETTE_COLORS %d\n", header_name, Nbr_Colors);
                 }
                 // Generate mipmaps locations inside the picture
                 // (No need to generate them if the data are saved as sourcecode).
@@ -1482,15 +1518,15 @@ gint save_image(gchar *filename,
                 {
                     for(i = 0; i < values_defaults.Nbr_MipMaps + 1; i++)
                     {
-                        fprintf(out, "#define %s_MIPMAPS_OFFSET%d %d\n", header_name, i, mipmaps_offsets[i]);
+                        fprintf(out_palette, "#define %s_MIPMAP%d_OFFSET %d\n", header_name, i, mipmaps_offsets[i]);
                     }
                 }
+                fclose(out_palette);
                 Return_Value = TRUE;
-                fclose(out);
             }
         }
     }
-
+error:
     g_free(progress);
     g_free(dest_palette_buffer);
     g_free(palette_buffer);
